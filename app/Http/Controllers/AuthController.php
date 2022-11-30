@@ -97,7 +97,7 @@ class AuthController extends Controller
                 if (Auth::user()->status < 0) {
                     Auth::logout(); // 强制销毁会话，因为Auth::attempt的时候会产生会话
 
-                    return Redirect::back()->withInput()->withErrors('账号已禁用');
+                    return Redirect::back()->withInput()->withErrors('账号已禁用 ');
                 }
 
                 if (Auth::user()->status == 0 && self::$systemConfig['is_active_register']) {
@@ -143,9 +143,9 @@ class AuthController extends Controller
     // 注册
     public function register(Request $request)
     {
-        
+
        // return Response::view('auth.register');
-        
+
         $cacheKey = 'register_times_' . md5(getClientIp()); // 注册限制缓存key
 
         if ($request->isMethod('POST')) {
