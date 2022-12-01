@@ -828,6 +828,34 @@ class UserController extends Controller
         return Response::view('user.help', $view);
     }
 
+    //公告列表
+    public function articleList(Request $request){
+        $req = $request->all();
+        if(isset($req['page'])){
+            $page = $req['page']?$req['page']:1;
+        }
+        if(isset($req['page_size'])){
+            $page_size = $req['page_size']?$req['page_size']:0;
+        }
+        $List = Article::type(2)->orderBy('sort', 'desc')->orderBy('id', 'desc')->limit($page*$page_size)->paginate($page_size)->toArray();
+        return Response::json($List);
+    }
+
+    //公告详情
+    public function articleInfo(Request $request){
+        $info = Article::query()->findOrFail($request->id);
+        return Response::json($info);
+    }
+
+    //套餐列表
+    public function goodslist(Request $request)
+    {
+
+        $list = Goods::all();
+
+        return Response::json(['status' => 'success', 'data' => $list, 'message' => '']);
+    }
+
     // 更换订阅地址
     public function exchangeSubscribe(Request $request)
     {

@@ -1,4 +1,4 @@
-git remote -v<?php
+<?php
 
 Route::get('s/{code}', 'SubscribeController@getSubscribeByCode'); // 节点订阅地址
 
@@ -139,6 +139,9 @@ Route::group(['middleware' => ['isForbidden', 'isLogin']], function () {
     Route::post("switchToAdmin", "UserController@switchToAdmin"); // 转换成管理员的身份
     Route::post("charge", "UserController@charge"); // 卡券余额充值
     Route::get("help", "UserController@help"); // 帮助中心
+    Route::get("articleList", "UserController@articleList"); // 公告列表
+    Route::get("articleInfo", "UserController@articleInfo"); // 公告列表
+    Route::get('goodslist','UserController@goodslist');
 
     Route::post('payment/create', 'PaymentController@create'); // 创建支付
     Route::get('payment/getStatus', 'PaymentController@getStatus'); // 获取支付单状态
