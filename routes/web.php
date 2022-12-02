@@ -141,7 +141,11 @@ Route::group(['middleware' => ['isForbidden', 'isLogin']], function () {
     Route::get("help", "UserController@help"); // 帮助中心
     Route::get("articleList", "UserController@articleList"); // 公告列表
     Route::get("articleInfo", "UserController@articleInfo"); // 公告列表
-    Route::get('goodslist','UserController@goodslist');
+    Route::get('goodslist','UserController@goodslist');//套餐列表
+    Route::get('devicelog','UserController@addDeviceLog');//用户设备添加记录
+    Route::get('devicelist','UserController@deviceList');//设备列表
+    Route::get('deviceremove','UserController@deviceRemove');//设备解绑
+
 
     Route::post('payment/create', 'PaymentController@create'); // 创建支付
     Route::get('payment/getStatus', 'PaymentController@getStatus'); // 获取支付单状态

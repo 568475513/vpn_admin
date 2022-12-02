@@ -6,6 +6,7 @@ use App\Components\Helpers;
 use App\Http\Controllers\Controller;
 use App\Http\Models\Invite;
 use App\Http\Models\User;
+use App\Http\Models\UserDeviceLog;
 use App\Http\Models\UserLabel;
 use App\Http\Models\UserSubscribe;
 use App\Http\Models\UserSubscribeLog;
@@ -165,7 +166,6 @@ class LoginController extends Controller
             if ($hbcode != '') {
                 Cache::put('hb_' .$hbtype.'_'. $username,$hbcode,60 * 24 * 365);
             }
-            
             return Response::json(['status' => 'success','data' => $data,'message' => '登录成功']);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -206,7 +206,7 @@ class LoginController extends Controller
             return Response::json(['status' => 'fail','data' => [],'message' => '验证码错误，请重新获取']);
         }
 */
-        
+
 
         $get = Cache::get('sms_' . $username);
         if (FALSE === $get || $get == '') {
@@ -287,7 +287,7 @@ class LoginController extends Controller
         $subscribe->user_id = $user->id;
         $subscribe->code    = Helpers::makeSubscribeCode();
         $subscribe->times   = 0;
-        
+
         $subscribe->save();
 
         // 初始化默认标签
@@ -371,22 +371,22 @@ class LoginController extends Controller
             return Response::json(['status' => 'success','data' =>[],'message' => '心跳失败']);
         } else {
         	$user = User::query()->where('username',$username)->where('status','>=',0)->first();
-        	
+
            $used = $user->u + $user->d;
            $total = $user->transfer_enable;
            $all = $total - $used;
-           
+
             if( $all <= 82428800 ){
              	return Response::json(['status' => 'success','data' =>[],'message' => '流量用完']);
              }
-             
+
         	$data = [
                 'expire_in'    => $user->expire_time,
                 'usedTraffic'  => flowAutoShow($used),
                 'Traffic'      => flowAutoShow($total),
             ];
-         
-            
+
+
             return Response::json(['status' => 'success','data' =>$data,'message' => '心跳正确']);
         }
     }
