@@ -866,7 +866,7 @@ class UserController extends Controller
             }
         }
 
-        if (!$in){
+        if (!$in && count($imei)>=3){
             return Response::json(['code'=>-2, 'msg'=>'please remove your device' ,'data'=>''],200);
         }
 
