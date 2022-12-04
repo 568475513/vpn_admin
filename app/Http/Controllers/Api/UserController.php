@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Components\Helpers;
 use App\Components\ServerChan;
+use App\Components\tronapi;
 use App\Http\Controllers\Controller;
 use App\Http\Models\Article;
 use App\Http\Models\Goods;
@@ -11,6 +12,7 @@ use App\Http\Models\Coupon;
 use App\Http\Models\Ticket;
 use App\Http\Models\TicketReply;
 use App\Http\Models\User;
+use App\Http\Models\UserDeviceLog;
 use App\Mail\newTicket;
 use App\Mail\replyTicket;
 use App\Http\Models\UserBalanceLog;
@@ -204,7 +206,7 @@ class UserController extends Controller
     public function getgoods(Request $request)
     {
         $username = trim($request->get('username'));
-        
+
         $is_vip = trim($request->get('is_vip',1));
         // 查找账号
         $user = User::query()->where('username',$username)->first();
@@ -219,20 +221,20 @@ class UserController extends Controller
         $view['type'] = $request->get('type');
 
         $view['list'] = Goods::where('is_vip',$is_vip)->type(2)->limit(12)->get();
-        
+
         $view['lista'] = Goods::where('is_vip',$is_vip)->type(1)->limit(12)->get();
-        
+
         $view['skey'] = self::$systemConfig['stripepay_publish_key'];
-        
+
         $view['is_vip'] = $is_vip;
-        
+
         $view['url'] = $request->url()."?username=".$username.'&type='.$request->get('type','pc');
-        
+
         return Response::view('api.goods',$view);
     }
-    
+
     public function chargecoupon(Request $request){
-        
+
         $username = trim($request->get('username'));
          // 查找账号
         $user = User::query()->where('username',$username)->first();
@@ -241,15 +243,15 @@ class UserController extends Controller
             exit;
             return Response::json(['status' => 'fail','data' => [],'message' => '账号不存在，请重试']);
         }
-        
+
         $coupon_sn = trim($request->get('coupon_sn'));
-        
+
         $coupon = Coupon::query()->where('status', 0)->where('type', 3)->where('sn', $coupon_sn)->first();
             if (!$coupon) {
                 return Response::json(['status' => 'fail', 'data' => '', 'message' => '充值卡不存在']);
             }
- 
-        
+
+
         $coupon = Coupon::type(3)->where('sn', $coupon_sn)->where('status', 0)->first();
         if (!$coupon) {
             return Response::json(['status' => 'fail', 'data' => '', 'message' => '该券不可用']);
@@ -257,7 +259,7 @@ class UserController extends Controller
 
         DB::beginTransaction();
         try {
-            
+
             $amount = $coupon->amount*100;
              $log = new UserBalanceLog();
             $log->user_id = $user->id;
@@ -290,15 +292,166 @@ class UserController extends Controller
 
             return Response::json(['status' => 'fail', 'data' => '', 'message' => '充值失败']);
         }
-        
+
     }
-    
-    
+
+
     public function goodslist(Request $request)
     {
-       
+
         $list = Goods::all();
-        
+
         return Response::json(['status' => 'success', 'data' => $list, 'message' => '']);
+    }
+
+    //公告列表
+    public function articleList(Request $request){
+        $req = $request->all();
+        $page = isset($req['page'])?$req['page']:1;
+        $page_size = isset($req['page_size'])?$req['page_size']:0;
+
+        $List = Article::type(2)->orderBy('sort', 'desc')->orderBy('id', 'desc')->limit($page*$page_size)->paginate($page_size)->toArray();
+        return Response::json($List);
+    }
+
+    //公告详情
+    public function articleInfo(Request $request){
+        $info = Article::query()->findOrFail($request->id);
+        return Response::json($info);
+    }
+
+    //用户设备日志记录
+    public function addDeviceLog(Request $request){
+
+        $req = $request->all();
+        $userId = isset($req['UserID'])?$req['UserID']:'';
+        if($userId == ''){
+            return Response::json(['code'=>-1, 'msg'=>'no user info' ,'data'=>''],200);
+        }
+        $DeviceType = isset($req['DeviceType'])?$req['DeviceType']:0;
+        $DeviceName = isset($req['DeviceName'])?$req['DeviceName']:'';
+        $DeviceModel = isset($req['DeviceModel'])?$req['DeviceModel']:'';
+        $DeviceIMEI = isset($req['DeviceIMEI'])?$req['DeviceIMEI']:'';
+
+        $in = false;
+        //判断用户登陆设备是否在最近三组设备
+        $imei = UserDeviceLog::where(['UserID'=>$userId])->select('DeviceIMEI')->orderBy('LoginTime','desc')->limit(3)->get()->toArray();
+        foreach ($imei as $k=>$v){
+            if($DeviceIMEI == $v['DeviceIMEI']){
+                $in = true;
+            }
+        }
+
+        if (!$in && count($imei)>=3){
+            return Response::json(['code'=>-2, 'msg'=>'please remove your device' ,'data'=>''],200);
+        }
+
+        $insert = [
+            'UserID' => $userId,
+            'DeviceType' => $DeviceType,
+            'DeviceName' => $DeviceName,
+            'DeviceModel' => $DeviceModel,
+            'DeviceIMEI'  => $DeviceIMEI,
+            'LoginTime'   => date('Y-m-d H:i:s', time())
+        ];
+
+        $res = UserDeviceLog::insert($insert);
+        if ($res){
+            return Response::json(['code'=>0, 'msg'=>'ok' ,'data'=>''],200);
+        }else{
+            return Response::json(['code'=>-1, 'msg'=>'add log err' ,'data'=>''],200);
+        }
+    }
+
+    //用户设备列表
+    public function deviceList(Request $request){
+        $req = $request->all();
+        $userId = isset($req['UserID'])?$req['UserID']:'';
+        if($userId == ''){
+            return Response::json(['code'=>-1, 'msg'=>'no user info' ,'data'=>''],200);
+        }
+        $res = UserDeviceLog::where(['UserID'=>$userId])->orderBy('LoginTime','desc')->get()->toArray();
+        if ($res){
+            return Response::json(['code'=>0, 'msg'=>'ok' ,'data'=>$res],200);
+        }else{
+            return Response::json(['code'=>-1, 'msg'=>'get list err' ,'data'=>''],200);
+        }
+    }
+
+    //设备解除列表
+    public function deviceRemove(Request $request){
+        $req = $request->all();
+        $id = isset($req['id'])?$req['id']:'';
+        if($id == ''){
+            return Response::json(['code'=>-1, 'msg'=>'no device info' ,'data'=>''],200);
+        }
+        $res = UserDeviceLog::where(['ID'=>$id])->delete();
+        if ($res){
+            return Response::json(['code'=>0, 'msg'=>'ok' ,'data'=>''],200);
+        }else{
+            return Response::json(['code'=>-1, 'msg'=>'delete log err' ,'data'=>''],200);
+        }
+    }
+
+    //发送邮箱验证码
+    public function sendEmail(Request $request){
+
+        $req = $request->all();
+        $email = isset($req['email'])?$req['email']:'';
+        if ($email==''){
+            return Response::json(['status' => 'fail', 'data' => '', 'message' => '缺失必要参数']);
+        }
+        $userId = isset($req['UserID'])?$req['UserID']:'';
+        if ($userId==''){
+            return Response::json(['status' => 'fail', 'data' => '', 'message' => '缺失必要参数']);
+        }
+        $subject = "Email Verify";
+        $randCode = rand(100000,999999);
+        session($userId.$randCode);
+
+        $message = "验证码：$randCode 请你在30分钟内输入。请勿告诉他人，如非本人操作，请忽略此信息。";
+        $from = "someonelse@example.com";
+        $headers = "From: $from";
+        $res = mail($email,$subject,$message,$headers);
+        if($res){
+            return Response::json(['status' => 'success', 'data' => '', 'message' => '发送成功']);
+        }else{
+            return Response::json(['status' => 'fail', 'data' => '', 'message' => '邮箱验证码发送失败']);
+        }
+    }
+
+
+    //订单创建接口
+    public function createTronOrder(Request $request){
+        $publicKey = '919213B10030491DA6527F06673C84B2';
+        $privateKey = 'F9BF357AB43F4262ADCE2446DCD1C1E4';
+
+        $client = new tronapi\Tronapi($publicKey, $privateKey);
+
+        /* =====================================================================
+        订单创建
+        接口地址：https://doc.tronapi.com/api/transaction/create.html
+        ===================================================================== */
+
+        $amount = 100;
+        $currency = 'CNY';
+        $coinCode = 'USDT';
+        $orderId = '123456';
+        $productName = 'test';
+        $customerId = 'testname';
+        $notifyUrl = 'http://www.vpn.com:8101/api/createTronOrder';
+        $redirectUrl = 'http://www.vpn.com:8101/api/createTronOrder';
+
+        $transactionData = $client->transaction->create(
+            $amount,
+            $currency,
+            $coinCode,
+            $orderId,
+            $customerId,
+            $productName,
+            $notifyUrl,
+            $redirectUrl
+        );
+
     }
 }

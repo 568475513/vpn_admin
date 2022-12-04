@@ -48,15 +48,27 @@ Route::group(['namespace' => 'Api'],function () {
     Route::any('paystripe','PayController@paystripe');
     Route::any('checkorder','PayController@check');
 	Route::any('paybalance','PayController@balance');
-  
+
     // PING检测
     Route::get('ping','PingController@ping');
-  
+
       //　游戏管理
     Route::any('gamelist','GameController@index');
     Route::any('gameinfo','GameController@info');
-    
+
     // IOS支付
     Route::any('createorder','PayController@createorder');
     Route::any('iospaycallback','PayController@iospaycallback');
+
+    //U支付回调
+    Route::any('UPayCallBack','PayController@uPayCallBack');
+
+    Route::any("articleList", "UserController@articleList"); // 公告列表
+    Route::any("articleInfo", "UserController@articleInfo"); // 公告列表
+    Route::any('goodslist','UserController@goodslist');//套餐列表
+    Route::any('devicelog','UserController@addDeviceLog');//用户设备添加记录
+    Route::any('devicelist','UserController@deviceList');//设备列表
+    Route::any('deviceremove','UserController@deviceRemove');//设备解绑
+    Route::any('sendEmail','UserController@sendEmail');//发送邮箱验证信息
+    Route::any('createTronOrder','UserController@createTronOrder');//发送邮箱验证信息
 });

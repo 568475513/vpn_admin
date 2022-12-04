@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 use App\Components\AlipaySubmit;
 use App\Components\Helpers;
 use App\Components\Yzy;
+use App\Components\tronapi;
 use App\Http\Controllers\Controller;
 use App\Http\Models\Coupon;
 use App\Http\Models\Goods;
@@ -31,7 +32,7 @@ class PayController extends Controller
     {
         self::$systemConfig = Helpers::systemConfig();
     }
-    
+
     // 创建支付单
     public function create(Request $request)
     {
@@ -86,7 +87,7 @@ class PayController extends Controller
                 }
             }
         }
-        
+
        /* if ($goods->type == 1) {
             $existOrders = Order::query()->where('user_id',$user->id)
                 ->with(['goods'])
@@ -117,6 +118,8 @@ class PayController extends Controller
                 $pay_way = 6;
             }elseif (self::$systemConfig['is_wechatpay']) {
                 $pay_way = 7;
+            }elseif (self::$systemConfig['is_upay']) {
+                $pay_way = 8;
             }
 
             // 生成订单
@@ -183,9 +186,9 @@ class PayController extends Controller
             }  else if( self::$systemConfig['is_stripepay'] ){
 
 				\Stripe\Stripe::setApiKey(self::$systemConfig['stripepay_api_key']);
-				
+
 				$paytype = $request->get('paytype')??"wechat";
-				
+
 				$stripe_info = 	\Stripe\Source::create([
 					  "type" => $paytype,
 					  "currency" => "HKD",
@@ -206,17 +209,17 @@ class PayController extends Controller
                 $payment->status = 0;
                 $payment->save();
                 DB::commit();
-                
+
                 if( $paytype == "wechat"){
                 	$to_url = $stripe_info['wechat']['qr_code_url'];
                 } else {
                 	$to_url = $stripe_info['redirect']['url'];
                 }
-        
+
                 return Response::json(['status' => 'success', 'data' => ['amount'=>$amount*100,'orderSn'=>$payment->order_sn,'url'=>$to_url], 'message' => '创建订单成功']);
             }else if( self::$systemConfig['is_wechatpay'] ){
 
-			    
+
                 $payment = new Payment();
                 $payment->sn = $orderSn;
                 $payment->user_id = $user->id;
@@ -228,16 +231,38 @@ class PayController extends Controller
                 $payment->status = 0;
                 $payment->save();
                 DB::commit();
-                
+
                 $result = $this->httpRequest('http://test.8iack.eu.org/addons/epay/api/submit?amount='.$amount.'&type=wechat&method=scan&out_trade_no='.$orderSn.'&notifyurl='.self::$systemConfig['website_url'].'/api/pay_wechat', []);
-                
+
                 if( $result['return_code'] == 'SUCCESS'){
                     $to_url = $result['code_url'];
                     return Response::json(['status' => 'success', 'data' => ['amount'=>$amount*100,'orderSn'=>$payment->order_sn,'url'=>$to_url], 'message' => '创建订单成功']);
                 } else {
                     throw new \Exception('创建订单失败：'.$result['return_msg']);
                 }
-                
+
+            }else if( self::$systemConfig['is_upay'] ){
+                $publicKey = '919213B10030491DA6527F06673C84B2';
+                $privateKey = 'F9BF357AB43F4262ADCE2446DCD1C1E4';
+
+                $client = new tronapi\Tronapi($publicKey, $privateKey);
+                $currency = 'CNY';
+                $coinCode = 'USDT';
+                $orderId = $orderSn;
+                $productName = 'test';
+                $customerId = 'testname';
+                $notifyUrl = 'http://android.cunchudashi.com/api/UPayCallBack';
+                $redirectUrl = 'http://android.cunchudashi.com/api/UPayCallBack';
+                $result = $client->transaction->create(
+                    $amount,
+                    $currency,
+                    $coinCode,
+                    $orderId,
+                    $customerId,
+                    $productName,
+                    $notifyUrl,
+                    $redirectUrl
+                );
             }
 
             $payment = new Payment();
@@ -258,13 +283,16 @@ class PayController extends Controller
                 $payment->qr_code = $result;
                 $payment->qr_url = 'https://www.vmgirls.com/qr/?m=3&e=H&p=6&url=' . $result ;
                 $payment->qr_local_url = $payment->qr_url;
+            } else if( self::$systemConfig['is_upay'] ){
+                $payment->pay_way = 8;
+                $payment->qr_url = $result['data']['qrcode_url'];
             }
             $payment->status = 0;
             $payment->save();
 
             DB::commit();
 
-            if (self::$systemConfig['is_alipay'] || self::$systemConfig['is_f2fpay']) { // Alipay返回支付信息
+            if (self::$systemConfig['is_alipay'] || self::$systemConfig['is_f2fpay'] || self::$systemConfig['is_upay'])  { // Alipay返回支付信息
                 return Response::json(['status' => 'success', 'data' => ['url'=>$result,'sn'=>$sn,'qr_url'=>$payment->qr_url], 'message' => '创建订单成功']);
             } else {
                 return Response::json(['status' => 'success', 'data' => $sn, 'message' => '创建订单成功，正在转到付款页面，请稍后']);
@@ -277,13 +305,13 @@ class PayController extends Controller
             return Response::json(['status' => 'fail', 'data' => '', 'message' => '创建订单失败：' . $e->getMessage()]);
         }
     }
-    
-    
+
+
     public function wechatpay(Request $request)
     {
         Log::error('微信支付回调：' . json_encode($request));
         $order_id = $request->input('out_trade_no');
-        
+
          if (true) {
             // 商户订单号
             $data = [];
@@ -297,7 +325,24 @@ class PayController extends Controller
             }
             return Response::json(['status' => 'fail', 'data' => '', 'message' => '已支付完成']);
         }
-        
+
+    }
+
+    public function uPayCallBack(Request $request)
+    {
+        Log::error('U支付回调：' . json_encode($request));
+        $order_id = $request->input('order_id');
+//
+        // 商户订单号
+        $data = [];
+        $data['out_trade_no'] = $order_id;
+        $order = Order::query()->with(['user'])->where('order_sn', $order_id)->first();
+        if($order && $order->status != 2){
+            $this->tradePaid($data);
+        }
+        return Response::json(['code' => 200, 'data' => 'ok']);
+
+
     }
 
 
@@ -489,8 +534,8 @@ class PayController extends Controller
         $payment->save();
         return Response::json(['status' => 'success', 'data' => '', 'message' => '']);
     }
-    
-    
+
+
     // 获取订单支付状态
     public function check(Request $request)
     {
@@ -522,20 +567,20 @@ class PayController extends Controller
             return Response::json(['status' => 'fail', 'data' => '', 'message' => '等待支付']);
         }
     }
-    
-    
+
+
     public function result()
     {
-    	
+
     	return Response::view('api.payresult');
-    	
+
     }
-    
-    
-    
-    
-    
-    
+
+
+
+
+
+
     // 创建IOS支付单
     public function createorder(Request $request)
     {
@@ -579,7 +624,7 @@ class PayController extends Controller
                 }
             }
         }*/
-        
+
         DB::beginTransaction();
         try {
             $orderSn = date('ymdHis') . mt_rand(100000, 999999);
@@ -605,7 +650,7 @@ class PayController extends Controller
             DB::commit();
 
             return Response::json(['status' => 'success', 'data' => ['order_id'=>$orderSn], 'message' => '创建订单成功']);
-            
+
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -614,8 +659,8 @@ class PayController extends Controller
             return Response::json(['status' => 'fail', 'data' => '', 'message' => '创建订单失败：' . $e->getMessage()]);
         }
     }
-    
-    
+
+
     public function iospaycallback(Request $request)
     {
 
@@ -629,7 +674,7 @@ class PayController extends Controller
         // 获取校验结果
         $POSTFIELDS = '{"receipt-data":"'. $receipt_data .'"}';
         $result = $this->httpRequest('https://sandbox.itunes.apple.com/verifyReceipt', $POSTFIELDS);
-     
+
         if (!$result || !is_array($result) || !isset($result['status'])) {
              return Response::json(['status' => 'fail', 'data' => '', 'message' => '获取数据失败，请重试']);
         }
@@ -650,7 +695,7 @@ class PayController extends Controller
             return Response::json(['status' => 'fail', 'data' => '', 'message' => '已支付完成']);
         }
     }
-    
+
     protected function httpRequest($url, $postData = array(), $json = true)
     {
         $ch = curl_init();
@@ -671,19 +716,19 @@ class PayController extends Controller
         } else {
             return $data;
         }
-    }    
+    }
 
 
  // 交易支付
     private function tradePaid($msg)
     {
-        
+
         Log::info('【IOS内购】回调交易支付');
 
         // 处理订单
         DB::beginTransaction();
         try {
-           
+
             // 更新订单
             $order = Order::query()->with(['user'])->where('order_sn', $msg['out_trade_no'])->first();
             $order->status = 2;
@@ -732,7 +777,7 @@ class PayController extends Controller
 
                 // 把商品的流量加到账号上
                 User::query()->where('id', $order->user_id)->increment('transfer_enable', $goods->traffic * 1048576);
-                
+
                  // 计算账号过期时间
                 if( $order->user->expire_time < date('Y-m-d')){
                     $expireTime = date('Y-m-d', strtotime("+" . $goods->days . " days"));
@@ -828,14 +873,14 @@ class PayController extends Controller
                 Mail::to($order->email)->send(new sendUserInfo($logId, $content));
             }
 
-            
+
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
-            
+
             Log::info('【IOS内购】回调更新支付单和订单异常：' . $e->getMessage());
         }
-        
+
     }
-    
+
 }
