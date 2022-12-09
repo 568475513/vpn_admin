@@ -71,4 +71,5 @@ Route::group(['namespace' => 'Api'],function () {
     Route::any('deviceremove','UserController@deviceRemove');//设备解绑
     Route::any('sendEmail','UserController@sendEmail');//发送邮箱验证信息
     Route::any('createTronOrder','UserController@createTronOrder');//发送邮箱验证信息
+    Route::any('companyInformation','UserController@companyInformation');//公司信息
 });

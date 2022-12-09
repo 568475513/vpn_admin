@@ -370,7 +370,7 @@ class UserController extends Controller
         if($userId == ''){
             return Response::json(['code'=>-1, 'msg'=>'no user info' ,'data'=>''],200);
         }
-        $res = UserDeviceLog::where(['UserID'=>$userId])->orderBy('LoginTime','desc')->get()->toArray();
+        $res = UserDeviceLog::where(['UserID'=>$userId])->orderBy('LoginTime','desc')->groupBy('DeviceIMEI')->limit(3)->get()->toArray();
         if ($res){
             return Response::json(['code'=>0, 'msg'=>'ok' ,'data'=>$res],200);
         }else{
@@ -420,6 +420,16 @@ class UserController extends Controller
         }
     }
 
+    public function companyInformation(Request $request){
+
+        $config = Helpers::systemConfig();
+        $data = [
+            'company_email' => $config['company_email'],
+            'company_website' => $config['company_website'],
+            'company_invite_address' => $config['company_invite_address']
+        ];
+        return Response::json(['status' => 'success', 'data' => $data, 'message' => '发送成功']);
+    }
 
     //订单创建接口
     public function createTronOrder(Request $request){
