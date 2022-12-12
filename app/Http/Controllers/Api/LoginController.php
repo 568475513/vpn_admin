@@ -64,8 +64,15 @@ class LoginController extends Controller
         $user = User::query()->where('username',$username)->where('status','>=',0)->first();
         if (!$user) {
             //   Cache::increment($cacheKey);
-
-            return Response::json(['status' => 'fail','data' => [],'message' => '账号不存在或已被禁用']);
+            if(strpos($username,'@') === false){
+                return Response::json(['status' => 'fail','data' => [],'message' => '用户名或密码错误']);
+            }
+            $user = User::query()->where('mailname',$username)->where('status','>=',0)->first();
+            if (!$user) {
+                return Response::json(['status' => 'fail','data' => [],'message' => '账号不存在或已被禁用']);
+            }else if (!Hash::check($password,$user->password)){
+                return Response::json(['status' => 'fail','data' => [],'message' => '用户名或密码错误']);
+            }
         } else if (!Hash::check($password,$user->password)) {
             return Response::json(['status' => 'fail','data' => [],'message' => '用户名或密码错误']);
         }
@@ -196,6 +203,8 @@ class LoginController extends Controller
         $username = trim($request->get('username'));
         $password = trim($request->get('password'));
         $code     = trim($request->get('jiqi_code'));
+        $mail_code = trim($request->get('mail_code'));
+        $device_id = trim($request->get('device_id'));
 /*
         if( $code == ''){
             return Response::json(['status' => 'fail','data' => [],'message' => '设备错误,重新运行']);
@@ -220,6 +229,16 @@ class LoginController extends Controller
         $user = User::query()->where('username',$username)->first();
         if ($user) {
             return Response::json(['status' => 'fail','data' => [],'message' => '账号已被注册']);
+        }
+
+        if($mail_code != '' && strpos($username,'@') !== false){
+            $get = Cache::get('mail_' . $device_id);
+            if (FALSE === $get || $get == '') {
+                return Response::json(['status' => 'fail','data' => [],'message' => '邮箱验证码已过期']);
+            }
+            if ($get != $mail_code) {
+                return Response::json(['status' => 'fail','data' => [],'message' => '验证码不正确']);
+            }
         }
 
         // 如果需要邀请注册
@@ -389,5 +408,10 @@ class LoginController extends Controller
 
             return Response::json(['status' => 'success','data' =>$data,'message' => '心跳正确']);
         }
+    }
+
+    public function register_html(Request $request){
+
+        return Response::view('api.reg');
     }
 }

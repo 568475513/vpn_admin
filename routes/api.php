@@ -25,6 +25,7 @@ Route::group(['namespace' => 'Api'],function () {
     Route::any('register','LoginController@register');
     Route::any('resetpass','LoginController@resetpass');
     Route::any('checkhb','LoginController@checkhb');
+    Route::any('register_html','LoginController@register_html');
 
     Route::any('signin','UserController@signin');
     Route::any('brand','UserController@brand');

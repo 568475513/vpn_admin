@@ -401,14 +401,15 @@ class UserController extends Controller
         if ($email==''){
             return Response::json(['status' => 'fail', 'data' => '', 'message' => '缺失必要参数']);
         }
-        $userId = isset($req['UserID'])?$req['UserID']:'';
-        if ($userId==''){
+        $DeviceId = isset($req['DeviceId'])?$req['DeviceId']:'';
+        if ($DeviceId==''){
             return Response::json(['status' => 'fail', 'data' => '', 'message' => '缺失必要参数']);
         }
         $subject = "Email Verify";
         $randCode = rand(100000,999999);
-        session($userId.$randCode);
-
+        if (!Cache::has($DeviceId)){
+            Cache::add($DeviceId, $randCode,30);
+        }
         $message = "验证码：$randCode 请你在30分钟内输入。请勿告诉他人，如非本人操作，请忽略此信息。";
         $from = "someonelse@example.com";
         $headers = "From: $from";
